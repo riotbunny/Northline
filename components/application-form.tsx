@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const yesNoFields = [
   ["isAdult", "Are you 18 years of age or older?"],
@@ -36,6 +37,7 @@ const initialForm = {
 type FormState = typeof initialForm;
 
 export function ApplicationForm() {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>(initialForm);
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">(
     "idle",
@@ -69,6 +71,7 @@ export function ApplicationForm() {
         result.message ||
           "Thank you. Your application was received and a confirmation email has been sent.",
       );
+      window.setTimeout(() => router.push("/readiness-check"), 800);
     } catch (error) {
       setStatus("error");
       setStatusMessage(

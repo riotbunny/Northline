@@ -179,11 +179,11 @@ export async function POST(request: Request) {
     const googleSheetsWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
     const googleSheetsWebhookSecret = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
 
-    if (!apiKey || !adminEmail || !fromEmail || !googleSheetsWebhookUrl) {
+    if (!googleSheetsWebhookUrl) {
       return Response.json(
         {
           message:
-            "The onboarding form is not fully configured yet. Please set RESEND_API_KEY, ADMIN_EMAIL, FROM_EMAIL, and GOOGLE_SHEETS_WEBHOOK_URL.",
+            "The onboarding form is not fully configured yet. Please set GOOGLE_SHEETS_WEBHOOK_URL.",
         },
         { status: 503 },
       );
@@ -195,13 +195,15 @@ export async function POST(request: Request) {
       payload,
     });
 
-    await sendResendEmail({
-      apiKey,
-      from: fromEmail,
-      to: adminEmail,
-      subject: `Readiness match: ${payload.fullName}`,
-      html: adminHtml(payload),
-    });
+    if (apiKey && adminEmail && fromEmail) {
+      await sendResendEmail({
+        apiKey,
+        from: fromEmail,
+        to: adminEmail,
+        subject: `Readiness match: ${payload.fullName}`,
+        html: adminHtml(payload),
+      });
+    }
 
     return Response.json({
       message:

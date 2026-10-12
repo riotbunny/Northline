@@ -103,16 +103,29 @@ function adminHtml(payload: ReturnType<typeof normalizePayload>) {
   `;
 }
 
-function applicantHtml(payload: ReturnType<typeof normalizePayload>) {
-  return `
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#20252d;line-height:1.6;">
-      <h1 style="color:#0b1f33;">Your readiness check was received</h1>
-      <p>Hello ${escapeHtml(payload.fullName)},</p>
-      <p>Thank you for completing the Northline Client Partners readiness check. Your information was received for review.</p>
-      <p>If your readiness profile matches current client program needs, you may receive next-step onboarding instructions.</p>
-      <p style="font-size:13px;color:#607080;">Northline Client Partners is an independent business and is not owned or operated by Arise Virtual Solutions Inc. Opportunities are independent contractor opportunities and are not employment with Arise, Northline Client Partners, or client brands. Program availability, certification requirements, schedule options, and revenue terms vary.</p>
-    </div>
-  `;
+async function appendGoogleSheet(input: {
+  webhookUrl: string;
+  secret?: string;
+  payload: ReturnType<typeof normalizePayload>;
+}) {
+  const response = await fetch(input.webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      secret: input.secret,
+      submittedAt: new Date().toISOString(),
+      fullName: input.payload.fullName,
+      email: input.payload.email,
+      phone: input.payload.phone,
+      city: input.payload.city,
+      state: input.payload.state,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Google Sheets append failed: ${response.status} ${body}`);
+  }
 }
 
 async function sendResendEmail(input: {
@@ -154,16 +167,24 @@ export async function POST(request: Request) {
     const apiKey = process.env.RESEND_API_KEY;
     const adminEmail = process.env.ADMIN_EMAIL;
     const fromEmail = process.env.FROM_EMAIL;
+    const googleSheetsWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+    const googleSheetsWebhookSecret = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
 
-    if (!apiKey || !adminEmail || !fromEmail) {
+    if (!apiKey || !adminEmail || !fromEmail || !googleSheetsWebhookUrl) {
       return Response.json(
         {
           message:
-            "The onboarding form is not fully configured yet. Please set RESEND_API_KEY, ADMIN_EMAIL, and FROM_EMAIL.",
+            "The onboarding form is not fully configured yet. Please set RESEND_API_KEY, ADMIN_EMAIL, FROM_EMAIL, and GOOGLE_SHEETS_WEBHOOK_URL.",
         },
         { status: 503 },
       );
     }
+
+    await appendGoogleSheet({
+      webhookUrl: googleSheetsWebhookUrl,
+      secret: googleSheetsWebhookSecret,
+      payload,
+    });
 
     await sendResendEmail({
       apiKey,
@@ -171,14 +192,6 @@ export async function POST(request: Request) {
       to: adminEmail,
       subject: `Readiness match: ${payload.fullName}`,
       html: adminHtml(payload),
-    });
-
-    await sendResendEmail({
-      apiKey,
-      from: fromEmail,
-      to: payload.email,
-      subject: "Northline Client Partners readiness check received",
-      html: applicantHtml(payload),
     });
 
     return Response.json({

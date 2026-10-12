@@ -126,6 +126,15 @@ async function appendGoogleSheet(input: {
     const body = await response.text();
     throw new Error(`Google Sheets append failed: ${response.status} ${body}`);
   }
+
+  const result = (await response.json().catch(() => null)) as {
+    ok?: boolean;
+    message?: string;
+  } | null;
+
+  if (!result?.ok) {
+    throw new Error(result?.message || "Google Sheets append failed.");
+  }
 }
 
 async function sendResendEmail(input: {
